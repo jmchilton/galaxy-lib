@@ -28,6 +28,9 @@ class ToolConfSource(object):
         reload. """
         return DEFAULT_MONITOR
 
+    def parsing_shed_tool_conf(self):
+        return False
+
 
 class XmlToolConfSource(ToolConfSource):
 
@@ -44,13 +47,49 @@ class XmlToolConfSource(ToolConfSource):
     def parse_monitor(self):
         return string_as_bool(self.root.get('monitor', DEFAULT_MONITOR))
 
+    def parsing_shed_tool_conf(self):
+        # If it is an XML file with a tool_path, assume it is a shed tool
+        # conf, but allow disabling with shed_tool_conf flag.
+        return bool(self.root.get('tool_path')) and string_as_bool(self.root.get('shed_tool_conf', True))
+
 
 class YamlToolConfSource(ToolConfSource):
 
     def __init__(self, config_filename):
         with open(config_filename, "r") as f:
             as_dict = yaml.load(f)
+        self._preprocess(as_dict)
         self.as_dict = as_dict
+
+    def _preprocess(self, as_dict):
+        group_map = {}
+        groups = as_dict.pop("groups", [])
+        for group_def in groups:
+            group_id = group_def["id"]
+            group_items = group_def["items"]
+            if not group_def.get("enabled", True):
+                group_items = []
+            group_map[group_id] = group_items
+
+        def replace_groups_in_items(as_dict):
+            items = as_dict.get("items", [])
+            current_offset = 0
+            for index, item in enumerate(items[:]):
+                item_type = item.get("type")
+                iteration_offset = 1
+                if item_type == "group":
+                    group_id = item.get("id")
+                    group_items = group_map[group_id]
+                    items.remove(item)
+                    for group_item in group_items:
+                        items.insert(current_offset + iteration_offset - 1, group_item)
+                        iteration_offset += 1
+                elif item_type == "section":
+                    replace_groups_in_items(item)
+                current_offset += iteration_offset
+
+        replace_groups_in_items(as_dict)
+        print as_dict
 
     def parse_tool_path(self):
         return self.as_dict.get('tool_path')

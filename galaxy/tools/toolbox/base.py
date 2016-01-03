@@ -125,7 +125,8 @@ class AbstractToolBox( Dictifiable, ManagesIntegratedToolPanelMixin, object ):
         log.info( "Parsing the tool configuration %s" % config_filename )
         tool_conf_source = get_toolbox_parser(config_filename)
         tool_path = tool_conf_source.parse_tool_path()
-        if tool_path:
+        parsing_shed_tool_conf = tool_conf_source.parsing_shed_tool_conf()
+        if parsing_shed_tool_conf:
             # We're parsing a shed_tool_conf file since we have a tool_path attribute.
             parsing_shed_tool_conf = True
             # Keep an in-memory list of xml elements to enable persistence of the changing tool config.
@@ -464,8 +465,15 @@ class AbstractToolBox( Dictifiable, ManagesIntegratedToolPanelMixin, object ):
                 return [ tool ]
         return []
 
-    def tools( self ):
-        return iteritems(self._tools_by_id)
+    def tools( self, all_versions=False ):
+        if not all_versions:
+            for item in iteritems(self._tools_by_id):
+                yield item
+        else:
+            for tool_id in self._tool_versions_by_id:
+                versions = self._tool_versions_by_id[tool_id]
+                for version in versions:
+                    yield versions[version]
 
     def dynamic_confs( self, include_migrated_tool_conf=False ):
         confs = []
