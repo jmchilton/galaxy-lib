@@ -86,6 +86,11 @@ class ToolSource(object):
         """ Return string contianing command to run.
         """
 
+    def parse_expression(self):
+        """ Return string contianing command to run.
+        """
+        return None
+
     @abstractmethod
     def parse_environment_variables(self):
         """ Return environment variable templates to expose.
@@ -193,6 +198,9 @@ class ToolSource(object):
     def parse_profile(self):
         """ Return tool profile version as Galaxy major e.g. 16.01 or 16.04.
         """
+
+    def macro_paths(self):
+        return []
 
     def parse_tests_to_dict(self):
         return {'tests': []}
