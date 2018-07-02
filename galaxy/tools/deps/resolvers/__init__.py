@@ -113,9 +113,10 @@ FROM_UNVERSIONED = object()
 
 class RequirementMapping(object):
 
-    def __init__(self, from_name, from_version, to_name, to_version):
+    def __init__(self, from_name, from_version, to_name, to_version, from_uri=None):
         self.from_name = from_name
         self.from_version = from_version
+        self.from_uri = from_uri
         self.to_name = to_name
         self.to_version = to_version
 
@@ -131,7 +132,13 @@ class RequirementMapping(object):
         """
 
         if requirement.name != self.from_name:
-            return False
+            found_spec = False
+            for spec in requirement.spec:
+                if spec.uri == self.from_uri:
+                    found_spec = True
+
+            if not found_spec:
+                return False
         elif self.from_version is None:
             return True
         elif self.from_version is FROM_UNVERSIONED:
@@ -155,14 +162,15 @@ class RequirementMapping(object):
             unversioned = from_raw.get("unversioned", False)
             if unversioned and raw_version:
                 raise Exception("Cannot define both version and set unversioned to True.")
-
             if unversioned:
                 from_version = FROM_UNVERSIONED
             else:
                 from_version = str(raw_version) if raw_version is not None else raw_version
+            from_uri = from_raw.get("uri")
         else:
             from_name = from_raw
             from_version = None
+            from_uri = None
 
         to_raw = raw_mapping.get("to")
         if isinstance(to_raw, dict):
@@ -172,7 +180,7 @@ class RequirementMapping(object):
             to_name = to_raw
             to_version = None
 
-        return RequirementMapping(from_name, from_version, to_name, to_version)
+        return RequirementMapping(from_name, from_version, to_name, to_version, from_uri)
 
 
 @six.add_metaclass(ABCMeta)
