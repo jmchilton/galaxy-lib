@@ -100,6 +100,19 @@ def galactic_job_json(
         dataset_id = dataset["id"]
         return {"src": "hda", "id": dataset_id}
 
+    def upload_file_with_composite_data(file_path, composite_data, **kwargs):
+        if file_path is not None:
+            file_path = abs_path_or_uri(file_path, test_data_directory)
+        composite_data_resolved = []
+        for cd in composite_data:
+            composite_data_resolved.append(abs_path_or_uri(cd, test_data_directory))
+        target = FileUploadTarget(file_path, composite_data=composite_data_resolved, **kwargs)
+        upload_response = upload_func(target)
+        dataset = upload_response["outputs"][0]
+        datasets.append((dataset, target))
+        dataset_id = dataset["id"]
+        return {"src": "hda", "id": dataset_id}
+
     def upload_tar(file_path):
         file_path = abs_path_or_uri(file_path, test_data_directory)
         target = DirectoryUploadTarget(file_path)
@@ -150,6 +163,12 @@ def galactic_job_json(
 
     def replacement_file(value):
         file_path = value.get("location", None) or value.get("path", None)
+
+        composite_data = value.get("composite_data", None)
+        if composite_data:
+            filetype = value.get('filetype', None)
+            return upload_file_with_composite_data(None, composite_data, filetype=filetype)
+
         if file_path is None:
             return value
 
@@ -273,6 +292,7 @@ class FileUploadTarget(object):
     def __init__(self, path, secondary_files=None, **kwargs):
         self.path = path
         self.secondary_files = secondary_files
+        self.composite_data = kwargs.get("composite_data", [])
         self.properties = kwargs
 
     def __str__(self):
@@ -315,6 +335,7 @@ def tool_response_to_output(tool_response, history_id, output_id):
 
 
 def invocation_to_output(invocation, history_id, output_id):
+    print(invocation)
     if output_id in invocation["outputs"]:
         dataset = invocation["outputs"][output_id]
         galaxy_output = GalaxyOutput(history_id, "dataset", dataset["id"])
@@ -324,6 +345,7 @@ def invocation_to_output(invocation, history_id, output_id):
     else:
         raise Exception("Failed to find output with label [%s] in [%s]" % (output_id, invocation))
 
+    print("galaxy_output is %s " % (galaxy_output,))
     return galaxy_output
 
 
@@ -335,6 +357,7 @@ def output_to_cwl_json(
     Useful in running conformance tests and implementing the cwl-runner
     interface via Galaxy.
     """
+    print("in output_to_cwl_json")
     def element_to_cwl_json(element):
         element_output = GalaxyOutput(
             galaxy_output.history_id,
@@ -414,14 +437,17 @@ def output_to_cwl_json(
             return properties
 
     elif output_metadata["history_content_type"] == "dataset_collection":
-        if output_metadata["collection_type"] == "list":
+        rval = None
+        collection_type = output_metadata["collection_type"].split(":", 1)[0]
+        if collection_type in ["list", "paired"]:
             rval = []
             for element in output_metadata["elements"]:
                 rval.append(element_to_cwl_json(element))
-        elif output_metadata["collection_type"] == "record":
+        elif collection_type == "record":
             rval = {}
             for element in output_metadata["elements"]:
                 rval[element["element_identifier"]] = element_to_cwl_json(element)
+        print("rval is %s %s" % (rval, output_metadata))
         return rval
     else:
         raise NotImplementedError("Unknown history content type encountered")
